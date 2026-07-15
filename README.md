@@ -14,6 +14,7 @@ Este repositorio es la vitrina pública de una parte de mis herramientas de trab
 - [Compatibilidad](#compatibilidad)
 - [Agregar una nueva skill](#agregar-una-nueva-skill)
 - [Roadmap](#roadmap)
+- [Licencia](#licencia)
 - [Autor](#autor)
 
 ---
@@ -78,6 +79,10 @@ Estas skills están escritas y probadas principalmente con **Claude Code**. Usan
 ## Roadmap
 
 Este es el primer paso de una colección más grande. La intención es seguir extrayendo flujos de mi práctica de orquestación de IA — planeación, revisión de código, despliegue, gestión de backlog — y publicarlos aquí a medida que se estabilizan.
+
+## Licencia
+
+[MIT](LICENSE) — usa, copia, modifica y redistribuye estas skills libremente, con o sin atribución.
 
 ## Autor
 
