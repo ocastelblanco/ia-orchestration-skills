@@ -5,9 +5,9 @@
 
 **🇬🇧 [Read this in English](README.md)**
 
-Herramientas de proceso para desarrollo de software aumentado con IA. No son *prompts*: son flujos de trabajo completos que un agente de código ejecuta igual, proyecto tras proyecto.
+Herramientas de proceso para desarrollo de software aumentado con IA. Aquí no vas a encontrar *prompts* sueltos, sino flujos de trabajo completos que un agente de código ejecuta igual, proyecto tras proyecto.
 
-Este repositorio es la vitrina pública de mi práctica como **AI Orchestrator**. Cuando el agente escribe el 80 % del código, el trabajo de ingeniería deja de ser teclear y pasa a ser diseñar el proceso: qué contexto recibe el agente antes de actuar, en qué orden produce cada artefacto, cómo se verifica lo que entrega, y qué costó realmente producirlo. Cada skill de aquí codifica una de esas decisiones.
+Este repositorio es la vitrina pública de mi práctica como **AI Orchestrator**. Cuando el agente escribe el 80 % del código, el trabajo de ingeniería se desplaza: ya no consiste en teclear, sino en diseñar el proceso. Qué contexto recibe el agente antes de actuar. En qué orden produce cada artefacto. Cómo se verifica lo que entrega. Y cuánto costó producirlo, de verdad. Cada skill de aquí codifica una de esas decisiones.
 
 ## Tabla de contenidos
 
@@ -26,13 +26,11 @@ Este repositorio es la vitrina pública de mi práctica como **AI Orchestrator**
 
 ## Filosofía
 
-Tres ideas sostienen todo lo que hay en este repositorio.
+**El contexto es el producto.** Un agente sin contexto arquitectónico no escribe código malo. Escribe código plausible que no encaja, que es bastante peor, porque pasa la revisión superficial. Por eso la documentación deja de ser un entregable de fin de proyecto y se convierte en la entrada del sistema.
 
-**El contexto es el producto.** Un agente sin contexto arquitectónico no escribe código malo: escribe código plausible que no encaja. La documentación deja de ser un entregable de fin de proyecto y pasa a ser la entrada del sistema.
+**Lo que no se mide, se supone.** Trabajar con IA abrió una brecha nueva entre lo que se *siente* rápido y lo que *es* rápido. El estudio de METR de 2025 midió a desarrolladores experimentados un 19 % más lentos con IA, mientras ellos reportaban sentirse un 20 % más rápidos. La diferencia se la come el tiempo de revisión. Y si ese tiempo no es un campo medido, para efectos prácticos no existe.
 
-**Lo que no se mide, se supone.** El desarrollo asistido por IA generó una brecha nueva entre lo que se *siente* rápido y lo que *es* rápido — el estudio de METR de 2025 midió desarrolladores experimentados un 19 % más lentos con IA mientras creían ser un 20 % más rápidos. La diferencia se la come el tiempo de revisión. Si ese tiempo no es un campo medido, no existe.
-
-**Nada de datos inventados.** Pedirle a un LLM que reporte cuántos tokens gastó o cuánto costó una tarea es pedirle justo el dato que no puede conocer y sí puede confabular de forma convincente. La solución no es un prompt más severo: es quitarle el campo de las manos y extraerlo de un artefacto.
+**Nada de datos inventados.** Preguntarle a un LLM cuántos tokens gastó o cuánto costó una tarea es pedirle justo el dato que no puede conocer y sí puede confabular de manera convincente. La solución no está en escribir un prompt más severo. Está en quitarle el campo de las manos y extraerlo de un artefacto.
 
 ---
 
@@ -41,16 +39,16 @@ Tres ideas sostienen todo lo que hay en este repositorio.
 | Skill | Qué hace |
 |---|---|
 | **[`project-docs-bootstrap`](skills/project-docs-bootstrap/)** | Crea el sistema de documentación de un proyecto (`CLAUDE.md` → `PRD.md` → `tech-specs.md` → OWASP + git flow → `MEMORY.md` → `TODO.md`) con un **motor JIT** que mantiene siempre exactamente 2 tareas atómicas en el backlog, calculadas comparando el objetivo del producto contra el estado real. |
-| **[`ai-effort-tracking`](skills/ai-effort-tracking/)** | Mide el esfuerzo y el **costo real** del desarrollo asistido: tiempo humano vs. de agente, **peaje de revisión**, tokens y USD por tarea. Funciona en CLI, web, escritorio, móvil y API, con Anthropic, OpenAI, Google, DeepSeek, Qwen y Kimi. |
+| **[`ai-effort-tracking`](skills/ai-effort-tracking/)** | Mide el esfuerzo y el **costo real** del desarrollo asistido: tiempo humano frente a tiempo de agente, **peaje de revisión**, tokens y USD por tarea. Funciona en CLI, web, escritorio, móvil y API, con Anthropic, OpenAI, Google, DeepSeek, Qwen y Kimi. |
 
-Las dos se articulan: `project-docs-bootstrap` produce identificadores estables (`OBJ-3`, `T-0042`) y `ai-effort-tracking` los usa como clave de unión. El resultado responde una pregunta que ninguna herramienta genérica de observabilidad LLM puede responder: **cuánto costó, en dinero y en horas humanas, cada objetivo de producto.**
+Las dos se articulan entre sí. `project-docs-bootstrap` produce identificadores estables (`OBJ-3`, `T-0042`) y `ai-effort-tracking` los usa como clave de unión. Juntas responden algo que ninguna herramienta genérica de observabilidad LLM puede responder: **cuánto costó cada objetivo de producto, en dinero y en horas humanas.**
 
 ### Qué hace distinto a `ai-effort-tracking`
 
-- **El peaje de revisión, medido.** El hueco entre "el agente terminó" y "el humano envió el siguiente prompt" es tiempo de revisión, y ya está registrado en el disco. Con hooks pasa de estimado a medido — y por encima de un umbral se reclasifica como ausencia, para que una sesión que pasa la noche esperando no infle la métrica.
-- **Multi-proveedor de verdad.** Anthropic, OpenAI y DeepSeek cuentan los tokens de caché con semánticas incompatibles entre sí. Normalizarlas mal no lanza ningún error: produce cifras presentables y falsas por factores de más de 3×. La skill trae el contrato de normalización y las pruebas que lo fijan.
-- **Tarifa plana y API, separadas.** Bajo suscripción el costo marginal de un token es cero; bajo API es real. Se registran las tres cifras —precio sombra, costo marginal y parte proporcional de la cuota— porque cada una responde una pregunta distinta.
-- **Se niega a inventar.** Sin tarifa verificada, el costo va en `null` y el reporte dice por qué. Un validador rechaza cualquier evento con un campo "medido" que no venga de un extractor.
+- **El peaje de revisión, medido.** El hueco entre que el agente termina y que el humano envía el siguiente prompt es tiempo de revisión, y ya está registrado en tu disco. Con hooks pasa de estimado a medido. Y por encima de un umbral configurable se reclasifica como ausencia, para que una sesión que pasa la noche esperando no infle la métrica.
+- **Multi-proveedor de verdad.** Anthropic, OpenAI y DeepSeek cuentan los tokens de caché con semánticas incompatibles entre sí. Normalizarlas mal no lanza ningún error: produce cifras presentables y falsas, desviadas por factores de más de 3×. La skill trae el contrato de normalización y las pruebas que lo fijan.
+- **Tarifa plana y API, separadas.** Bajo suscripción el costo marginal de un token es cero; bajo API es real. Por eso se registran tres cifras (precio sombra, costo marginal y parte proporcional de la cuota), porque cada una responde una pregunta distinta.
+- **Se niega a inventar.** Sin tarifa verificada, el costo queda en `null` y el reporte explica por qué. Un validador rechaza cualquier evento con un campo "medido" que no venga de un extractor.
 
 ---
 
@@ -75,10 +73,11 @@ Requisitos: un agente compatible con Agent Skills. `ai-effort-tracking` necesita
 
 ## Uso
 
-Una skill se activa de dos formas:
+Una skill se activa de dos formas.
 
-1. **Automática** — el agente detecta que la tarea coincide con la descripción del *frontmatter*. Pedir "documenta este proyecto" activa `project-docs-bootstrap`; "cuánto costó esta sesión" activa `ai-effort-tracking`.
-2. **Explícita** — la invocas por nombre.
+La primera es **automática**: el agente detecta que la tarea coincide con la descripción del *frontmatter*. Pedir "documenta este proyecto" dispara `project-docs-bootstrap`; preguntar "cuánto costó esta sesión" dispara `ai-effort-tracking`.
+
+La segunda es **explícita**, invocándola por nombre:
 
 ```bash
 # Arrancar la documentación de un proyecto
@@ -94,7 +93,7 @@ Una skill se activa de dos formas:
 /ai-effort-tracking report
 ```
 
-Los scripts también corren solos, sin agente:
+Los scripts también corren solos, sin agente de por medio:
 
 ```bash
 cd skills/ai-effort-tracking
@@ -124,17 +123,17 @@ skills/<nombre>/
 └── templates/      # Opcional: archivos para copiar en el proyecto destino
 ```
 
-`SKILL.md` es lo único que el agente carga completo al activarse, por eso se mantiene corto y accionable. `references/` contiene el detalle, que el agente lee solo cuando el propio `SKILL.md` se lo indica.
+`SKILL.md` es lo único que el agente carga completo al activarse, así que conviene mantenerlo corto y accionable. El detalle vive en `references/`, que el agente lee solo cuando el propio `SKILL.md` se lo indica.
 
-Este diseño en capas —metadata siempre visible → cuerpo bajo demanda → referencias bajo demanda— es lo que permite tener decenas de skills instaladas sin saturar el contexto.
+Ese diseño en capas (metadata siempre visible, cuerpo bajo demanda, referencias bajo demanda) es lo que permite tener decenas de skills instaladas sin saturar la ventana de contexto.
 
 ---
 
 ## Compatibilidad
 
-Escritas y probadas con **Claude Code**, en formato estándar de Agent Skills, por lo que deberían funcionar con cualquier herramienta compatible. Algunos campos del *frontmatter*, como `allowed-tools`, son extensiones específicas de Claude Code y otras herramientas pueden ignorarlos sin problema.
+Están escritas y probadas con **Claude Code**, en formato estándar de Agent Skills, así que deberían funcionar con cualquier herramienta compatible. Algunos campos del *frontmatter*, como `allowed-tools`, son extensiones específicas de Claude Code y otras herramientas pueden ignorarlos sin problema.
 
-`ai-effort-tracking` mide trabajo hecho con cualquier modelo o herramienta; lo que varía es cuánta evidencia hay disponible. Los adaptadores de Claude Code están verificados; los de Codex CLI y Gemini CLI están documentados con su fuente identificada y marcados como pendientes de validación empírica. Esa distinción se mantiene visible a propósito.
+`ai-effort-tracking` mide trabajo hecho con cualquier modelo o herramienta. Lo que cambia de una a otra es cuánta evidencia hay disponible. Los adaptadores de Claude Code están verificados; los de Codex CLI y Gemini CLI están documentados con su fuente identificada y marcados como pendientes de validación empírica. Esa distinción se mantiene visible a propósito.
 
 ---
 
@@ -143,8 +142,8 @@ Escritas y probadas con **Claude Code**, en formato estándar de Agent Skills, p
 Los aportes son bienvenidos, sobre todo adaptadores nuevos para otras herramientas de codificación.
 
 1. Crea `skills/<nombre>/SKILL.md` con su *frontmatter*.
-2. Mantén `SKILL.md` bajo ~500 líneas; el detalle va a `references/`.
-3. Si añades un adaptador, sigue el [contrato](skills/ai-effort-tracking/references/adapter-contract.md) y **fija un payload real como prueba** — así un cambio de formato del proveedor falla ruidosamente en vez de en silencio.
+2. Mantén `SKILL.md` bajo unas 500 líneas; el detalle va a `references/`.
+3. Si añades un adaptador, sigue el [contrato](skills/ai-effort-tracking/references/adapter-contract.md) y **fija un payload real como prueba**, para que un cambio de formato del proveedor falle ruidosamente en vez de en silencio.
 4. Marca el estado de verificación con honestidad: *verificado*, *plausible* o *por investigar*.
 5. Agrega tu skill a la tabla de ambos README.
 
@@ -154,7 +153,7 @@ Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` antes de abrir el PR.
 
 ## Hoja de ruta
 
-- Adaptadores para **Codex CLI** y **Gemini CLI** (Gemini ya emite `gen_ai.client.token.usage`, de la convención GenAI de OpenTelemetry, así que puede alimentar el mismo colector que Claude Code).
+- Adaptadores para **Codex CLI** y **Gemini CLI**. Gemini ya emite `gen_ai.client.token.usage`, de la convención GenAI de OpenTelemetry, así que puede alimentar el mismo colector que Claude Code.
 - Colector OTLP y tablero en tiempo real, con el registro JSONL como formato de ingesta.
 - Estimación asistida: predecir el costo de una tarea nueva a partir del histórico de su tipo.
 
@@ -162,13 +161,13 @@ Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` antes de abrir el PR.
 
 ## Licencia
 
-[MIT](LICENSE) — usa, copia, modifica y redistribuye libremente, con o sin atribución.
+[MIT](LICENSE). Usa, copia, modifica y redistribuye libremente, con o sin atribución.
 
 ---
 
 ## Autor
 
-**Oliver Castelblanco** — [@ocastelblanco](https://github.com/ocastelblanco)
+**Oliver Castelblanco** · [@ocastelblanco](https://github.com/ocastelblanco)
 
 Diseño y opero procesos de desarrollo aumentado con IA: sistemas de contexto que evitan alucinaciones, flujos de verificación que detectan lo que el agente no ve, e instrumentación que convierte la intuición sobre productividad en datos que aguantan una revisión.
 
