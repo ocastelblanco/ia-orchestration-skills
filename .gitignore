@@ -9,9 +9,10 @@
 *.swp
 *.swo
 
-# Claude Code / oh-my-claudecode local state (not meant to be published)
+# Claude Code / oh-my-claudecode local state (not meant to be published) / Skills
 .claude/settings.local.json
 .omc/
+.claude/skills
 
 # Node.js (skill scripts/ may use it)
 node_modules/
@@ -33,3 +34,6 @@ venv/
 
 # Logs
 *.log
+
+# ai-effort-tracking: estado de trabajo de los hooks, no forma parte del ledger
+metrics/.state/
