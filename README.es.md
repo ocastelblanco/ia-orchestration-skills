@@ -1,6 +1,6 @@
 # ia-orchestration-skills
 
-[![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue.svg)](LICENSE)
+[![Licencia: Apache 2.0](https://img.shields.io/badge/licencia-Apache_2.0-blue.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/formato-Agent%20Skills-8A2BE2.svg)](#anatomía-de-una-skill)
 
 **🇬🇧 [Read this in English](README.md)**
@@ -161,7 +161,7 @@ Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` antes de abrir el PR.
 
 ## Licencia
 
-[MIT](LICENSE). Usa, copia, modifica y redistribuye libremente, con o sin atribución.
+[Apache 2.0](LICENSE). Usa, modifica y redistribuye libremente, también con fines comerciales. Si lo redistribuyes, conserva la licencia y el archivo [NOTICE](NOTICE), e indica qué archivos modificaste. La licencia también te otorga una licencia de patentes de los contribuidores.
 
 ---
 
