@@ -3,3 +3,8 @@ Copyright 2026 Oliver Castelblanco
 
 This product is licensed under the Apache License, Version 2.0.
 See the LICENSE file for the full license text.
+
+Exception: skills/owasp-security-verification/references/ contains material
+adapted from OWASP ASVS 5.0.0, OWASP Top 10:2025 and the OWASP Cheat Sheet
+Series, and is licensed under Creative Commons Attribution-ShareAlike 4.0
+(CC BY-SA 4.0). See skills/owasp-security-verification/references/LICENSE.

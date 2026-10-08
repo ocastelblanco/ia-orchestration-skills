@@ -40,8 +40,9 @@ This repository is the public shelf of my practice as an **AI Orchestrator**. On
 |---|---|
 | **[`project-docs-bootstrap`](skills/project-docs-bootstrap/)** | Builds a project's documentation system (`CLAUDE.md` → `PRD.md` → `tech-specs.md` → OWASP + git flow → `MEMORY.md` → `TODO.md`) with a **JIT engine** that keeps exactly 2 atomic tasks in the backlog at all times, derived by comparing the product goal against actual state. |
 | **[`ai-effort-tracking`](skills/ai-effort-tracking/)** | Measures effort and **real cost** of assisted development: human time versus agent time, **verification tax**, tokens and USD per task. Works across CLI, web, desktop, mobile and API, with Anthropic, OpenAI, Google, DeepSeek, Qwen and Kimi. |
+| **[`owasp-security-verification`](skills/owasp-security-verification/)** | Verifies what the agent just built against the OWASP requirements that **apply to its stack**. Every finding carries `file:line` evidence, an **ASVS 5.0** ID, a **Top 10:2025** category and the cheat sheet that fixes it. Markdown and SARIF report. |
 
-The two interlock. `project-docs-bootstrap` emits stable identifiers (`OBJ-3`, `T-0042`) and `ai-effort-tracking` uses them as its join key. Together they answer something no generic LLM observability tool can: **what each product goal cost, in money and in human hours.**
+The three interlock. `project-docs-bootstrap` emits stable identifiers (`OBJ-3`, `T-0042`) and `ai-effort-tracking` uses them as its join key. Together they answer something no generic LLM observability tool can: **what each product goal cost, in money and in human hours.** `owasp-security-verification` closes the loop: the security rules `project-docs-bootstrap` writes into `CLAUDE.md` get checked against the code, and the most severe failures feed the JIT engine as tasks.
 
 ### What makes `ai-effort-tracking` different
 
@@ -49,6 +50,13 @@ The two interlock. `project-docs-bootstrap` emits stable identifiers (`OBJ-3`, `
 - **Genuinely multi-provider.** Anthropic, OpenAI and DeepSeek count cache tokens with mutually incompatible semantics. Normalising them wrongly throws no error: it produces presentable, wrong figures, off by factors above 3×. The skill ships the normalisation contract and the tests that pin it.
 - **Flat rate and API, kept apart.** Under a subscription the marginal cost of a token is zero; under an API it's real. That's why three figures get recorded (shadow price, marginal cost, allocated share of the monthly fee), since each answers a different question.
 - **It refuses to invent.** With no verified rate, cost stays `null` and the report explains why. A validator rejects any event carrying a "measured" field that didn't come from an extractor.
+
+### What makes `owasp-security-verification` different
+
+- **Only what applies.** It detects 14 stack facets (Angular, Node/Lambda, Firebase, Supabase, PHP/Moodle, Python, LLM, custom auth, Docker, IaC, n8n, GitHub Actions…) and hands the agent only the relevant checks, 33 to 82 out of a 116-check catalog across the test projects. The agent never loads the whole standard.
+- **Verifiable, not opinion.** Every check cites ASVS 5.0.0 requirements that a script validates against the standard's official export. Where ASVS doesn't reach (containers, CI, LLMs), the check says so (`asvs_gap`) instead of forcing a mapping.
+- **An evidence gate.** The agent can only mark `pass` or `fail` by citing a file and line that exist, an allowed URL, or a read-only API call. Without evidence the check stays "pending", and the report never presents it as passed.
+- **Lightweight.** Dependency-free Node; 58 static rules settle the automatic part in seconds, and `npm audit` and `composer audit` cover dependencies. Live mode (headers, TLS, CORS, exposed paths, read-only AWS) is opt-in and restricted to an allowlist.
 
 ---
 
@@ -67,7 +75,7 @@ cp -r ia-orchestration-skills/skills/<skill-name> ~/.claude/skills/
 cp -r ia-orchestration-skills/skills/<skill-name> .claude/skills/
 ```
 
-Requirements: an Agent Skills-compatible agent. `ai-effort-tracking` also needs **Node.js ≥ 18** for its scripts, and **Python ≥ 3.10** only if you use the Python API wrapper.
+Requirements: an Agent Skills-compatible agent. `ai-effort-tracking` also needs **Node.js ≥ 18** for its scripts, and **Python ≥ 3.10** only if you use the Python API wrapper. `owasp-security-verification` needs **Node.js ≥ 20** and uses `npm`, `composer` and `pip-audit` when they're installed.
 
 ---
 
@@ -91,6 +99,9 @@ The second is **explicit**, by name:
 
 # Monthly report
 /ai-effort-tracking report
+
+# Verify the security of the component you just built
+/owasp-security-verification verify
 ```
 
 The scripts also run standalone, with no agent involved:
@@ -109,6 +120,27 @@ node scripts/core/report.mjs --dir metrics/events --from 2026-08-01 --out report
 
 # Tests
 node scripts/test.mjs
+```
+
+```bash
+cd skills/owasp-security-verification
+
+# Detected facets and suggested ASVS level
+node scripts/detect-stack.mjs --root ../my-app
+
+# Static verification (writes ../my-app/.owasp/results.json)
+node scripts/verify.mjs --root ../my-app --scope src/app/payments
+
+# Agent verdict: rejected if the evidence doesn't exist
+node scripts/findings.mjs record --root ../my-app --check BASE-19 --status pass \
+  --evidence api/middleware/auth.ts:12 --note "Every route goes through verifyToken"
+
+# Markdown + SARIF report
+node scripts/report.mjs --root ../my-app
+
+# Tests and catalog validation against ASVS 5.0.0
+node scripts/test.mjs
+node scripts/validate-catalog.mjs
 ```
 
 ---
@@ -147,7 +179,7 @@ Contributions are welcome, especially new adapters for other coding tools.
 4. Mark verification status honestly: *verified*, *plausible*, or *unresearched*.
 5. Add your skill to the table in both READMEs.
 
-Run `node skills/ai-effort-tracking/scripts/test.mjs` before opening a PR.
+Run `node skills/ai-effort-tracking/scripts/test.mjs` and `node skills/owasp-security-verification/scripts/test.mjs` before opening a PR.
 
 ---
 
@@ -156,12 +188,15 @@ Run `node skills/ai-effort-tracking/scripts/test.mjs` before opening a PR.
 - Adapters for **Codex CLI** and **Gemini CLI**. Gemini already emits `gen_ai.client.token.usage` from OpenTelemetry's GenAI semantic conventions, so it can feed the same collector as Claude Code.
 - OTLP collector and real-time dashboard, with the JSONL ledger as the ingestion format.
 - Assisted estimation: predicting a new task's cost from the history of its type.
+- `owasp-security-verification`: facets for native mobile (MASVS), Kubernetes and .NET/Java; optional adapters for semgrep, gitleaks, trivy and checkov.
 
 ---
 
 ## License
 
 [Apache 2.0](LICENSE). Use, modify and redistribute freely, including commercially. If you redistribute, keep the license and the [NOTICE](NOTICE) file, and state which files you changed. The license also grants you a patent license from contributors.
+
+Exception: [`skills/owasp-security-verification/references/`](skills/owasp-security-verification/references/) adapts OWASP material (ASVS, Top 10 and the Cheat Sheet Series) and is therefore distributed under **CC BY-SA 4.0**, the same license as its sources. That skill's code remains Apache 2.0.
 
 ---
 
