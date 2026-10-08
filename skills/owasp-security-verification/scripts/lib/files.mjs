@@ -109,7 +109,10 @@ export function globToRegExp(glob) {
   let re = '';
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
-    if (c === '*' && glob[i + 1] === '*') { re += '(?:.*/)?'; i++; if (glob[i + 1] === '/') i++; }
+    if (c === '*' && glob[i + 1] === '*') {
+      i++;
+      if (glob[i + 1] === '/') { re += '(?:.*/)?'; i++; } else re += '.*'; // `**/x` vs trailing `dir/**`
+    }
     else if (c === '*') re += '[^/]*';
     else if (c === '?') re += '[^/]';
     else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');

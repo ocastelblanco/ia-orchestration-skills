@@ -40,8 +40,9 @@ Este repositorio es la vitrina pública de mi práctica como **AI Orchestrator**
 |---|---|
 | **[`project-docs-bootstrap`](skills/project-docs-bootstrap/)** | Crea el sistema de documentación de un proyecto (`CLAUDE.md` → `PRD.md` → `tech-specs.md` → OWASP + git flow → `MEMORY.md` → `TODO.md`) con un **motor JIT** que mantiene siempre exactamente 2 tareas atómicas en el backlog, calculadas comparando el objetivo del producto contra el estado real. |
 | **[`ai-effort-tracking`](skills/ai-effort-tracking/)** | Mide el esfuerzo y el **costo real** del desarrollo asistido: tiempo humano frente a tiempo de agente, **peaje de revisión**, tokens y USD por tarea. Funciona en CLI, web, escritorio, móvil y API, con Anthropic, OpenAI, Google, DeepSeek, Qwen y Kimi. |
+| **[`owasp-security-verification`](skills/owasp-security-verification/)** | Verifica lo que el agente acaba de construir contra los requisitos OWASP que **le aplican** según su stack. Cada hallazgo trae evidencia `archivo:línea`, ID de **ASVS 5.0**, categoría del **Top 10:2025** y la cheat sheet de corrección. Reporte en Markdown y SARIF. |
 
-Las dos se articulan entre sí. `project-docs-bootstrap` produce identificadores estables (`OBJ-3`, `T-0042`) y `ai-effort-tracking` los usa como clave de unión. Juntas responden algo que ninguna herramienta genérica de observabilidad LLM puede responder: **cuánto costó cada objetivo de producto, en dinero y en horas humanas.**
+Las tres se articulan entre sí. `project-docs-bootstrap` produce identificadores estables (`OBJ-3`, `T-0042`) y `ai-effort-tracking` los usa como clave de unión. Juntas responden algo que ninguna herramienta genérica de observabilidad LLM puede responder: **cuánto costó cada objetivo de producto, en dinero y en horas humanas.** `owasp-security-verification` cierra el ciclo: las reglas de seguridad que `project-docs-bootstrap` escribe en `CLAUDE.md` se verifican contra el código, y las fallas de mayor severidad entran al motor JIT como tareas.
 
 ### Qué hace distinto a `ai-effort-tracking`
 
@@ -49,6 +50,13 @@ Las dos se articulan entre sí. `project-docs-bootstrap` produce identificadores
 - **Multi-proveedor de verdad.** Anthropic, OpenAI y DeepSeek cuentan los tokens de caché con semánticas incompatibles entre sí. Normalizarlas mal no lanza ningún error: produce cifras presentables y falsas, desviadas por factores de más de 3×. La skill trae el contrato de normalización y las pruebas que lo fijan.
 - **Tarifa plana y API, separadas.** Bajo suscripción el costo marginal de un token es cero; bajo API es real. Por eso se registran tres cifras (precio sombra, costo marginal y parte proporcional de la cuota), porque cada una responde una pregunta distinta.
 - **Se niega a inventar.** Sin tarifa verificada, el costo queda en `null` y el reporte explica por qué. Un validador rechaza cualquier evento con un campo "medido" que no venga de un extractor.
+
+### Qué hace distinto a `owasp-security-verification`
+
+- **Solo lo que aplica.** Detecta 14 facetas del stack (Angular, Node/Lambda, Firebase, Supabase, PHP/Moodle, Python, LLM, autenticación propia, Docker, IaC, n8n, GitHub Actions…) y le entrega al agente solo los chequeos pertinentes, entre 33 y 82 de un catálogo de 116 en los proyectos de prueba. El agente nunca carga el estándar completo.
+- **Verificable, no opinable.** Cada chequeo cita requisitos de ASVS 5.0.0 que un script valida contra el export oficial del estándar. Donde ASVS no llega (contenedores, CI, LLM), el chequeo lo declara (`asvs_gap`) en vez de forzar un mapeo.
+- **Compuerta de evidencia.** El agente solo puede marcar `pass` o `fail` citando un archivo y una línea que existan, una URL autorizada o una llamada de API de solo lectura. Sin evidencia el chequeo queda "pendiente", y el reporte no lo presenta como aprobado.
+- **Liviana.** Node sin dependencias; 58 reglas estáticas resuelven lo automático en segundos, y `npm audit` y `composer audit` cubren las dependencias. El modo live (cabeceras, TLS, CORS, rutas expuestas, AWS en solo lectura) es opt-in y está restringido a un allowlist.
 
 ---
 
@@ -67,7 +75,7 @@ cp -r ia-orchestration-skills/skills/<nombre-de-la-skill> ~/.claude/skills/
 cp -r ia-orchestration-skills/skills/<nombre-de-la-skill> .claude/skills/
 ```
 
-Requisitos: un agente compatible con Agent Skills. `ai-effort-tracking` necesita además **Node.js ≥ 18** para sus scripts, y **Python ≥ 3.10** solo si usas el *wrapper* de API en Python.
+Requisitos: un agente compatible con Agent Skills. `ai-effort-tracking` necesita además **Node.js ≥ 18** para sus scripts, y **Python ≥ 3.10** solo si usas el *wrapper* de API en Python. `owasp-security-verification` necesita **Node.js ≥ 20**; usa `npm`, `composer` y `pip-audit` si están instalados.
 
 ---
 
@@ -91,6 +99,9 @@ La segunda es **explícita**, invocándola por nombre:
 
 # Reporte del mes
 /ai-effort-tracking report
+
+# Verificar la seguridad del componente recién creado
+/owasp-security-verification verify
 ```
 
 Los scripts también corren solos, sin agente de por medio:
@@ -109,6 +120,27 @@ node scripts/core/report.mjs --dir metrics/events --from 2026-08-01 --out report
 
 # Pruebas
 node scripts/test.mjs
+```
+
+```bash
+cd skills/owasp-security-verification
+
+# Facetas detectadas y nivel ASVS sugerido
+node scripts/detect-stack.mjs --root ../mi-app
+
+# Verificación estática (escribe ../mi-app/.owasp/results.json)
+node scripts/verify.mjs --root ../mi-app --scope src/app/pagos
+
+# Veredicto del agente: se rechaza si la evidencia no existe
+node scripts/findings.mjs record --root ../mi-app --check BASE-19 --status pass \
+  --evidence api/middleware/auth.ts:12 --note "Todas las rutas pasan por verificarToken"
+
+# Reporte Markdown + SARIF
+node scripts/report.mjs --root ../mi-app
+
+# Pruebas y validación del catálogo contra ASVS 5.0.0
+node scripts/test.mjs
+node scripts/validate-catalog.mjs
 ```
 
 ---
@@ -147,7 +179,7 @@ Los aportes son bienvenidos, sobre todo adaptadores nuevos para otras herramient
 4. Marca el estado de verificación con honestidad: *verificado*, *plausible* o *por investigar*.
 5. Agrega tu skill a la tabla de ambos README.
 
-Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` antes de abrir el PR.
+Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` y `node skills/owasp-security-verification/scripts/test.mjs` antes de abrir el PR.
 
 ---
 
@@ -156,12 +188,15 @@ Ejecuta `node skills/ai-effort-tracking/scripts/test.mjs` antes de abrir el PR.
 - Adaptadores para **Codex CLI** y **Gemini CLI**. Gemini ya emite `gen_ai.client.token.usage`, de la convención GenAI de OpenTelemetry, así que puede alimentar el mismo colector que Claude Code.
 - Colector OTLP y tablero en tiempo real, con el registro JSONL como formato de ingesta.
 - Estimación asistida: predecir el costo de una tarea nueva a partir del histórico de su tipo.
+- `owasp-security-verification`: facetas para móvil nativo (MASVS), Kubernetes y .NET/Java; adaptadores opcionales para semgrep, gitleaks, trivy y checkov.
 
 ---
 
 ## Licencia
 
 [Apache 2.0](LICENSE). Usa, modifica y redistribuye libremente, también con fines comerciales. Si lo redistribuyes, conserva la licencia y el archivo [NOTICE](NOTICE), e indica qué archivos modificaste. La licencia también te otorga una licencia de patentes de los contribuidores.
+
+Excepción: [`skills/owasp-security-verification/references/`](skills/owasp-security-verification/references/) adapta material de OWASP (ASVS, Top 10 y Cheat Sheet Series) y por eso se distribuye bajo **CC BY-SA 4.0**, la misma licencia de las fuentes. El código de esa skill sigue en Apache 2.0.
 
 ---
 

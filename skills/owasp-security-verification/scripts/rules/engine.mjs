@@ -21,11 +21,13 @@ export const DOCKERFILES = ['Dockerfile', 'Dockerfile.*', '*.Dockerfile', '*.doc
 export const WORKFLOWS = ['.github/workflows/*.yml', '.github/workflows/*.yaml'];
 export const PROXY = ['nginx*.conf', '**/nginx/**/*.conf', '**/conf.d/*.conf', '**/sites-*/*', 'Caddyfile', '**/apache*/**/*.conf', '**/httpd*.conf'];
 
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|e2e|fixtures?|mocks?|__mocks__|testdata|cypress|playwright)\/|\.(spec|test|e2e)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/i;
+const TEST_PATH = /(^|\/)tests?\.[cm]?[jt]s$|(^|\/)(tests?|__tests__|spec|specs|e2e|fixtures?|mocks?|__mocks__|testdata|cypress|playwright)\/|\.(spec|test|e2e)\.[cm]?[jt]sx?$|(^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/i;
 const GENERATED = /\.min\.(js|css)$|\.d\.ts$|\.map$|(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|composer\.lock|poetry\.lock|uv\.lock)$/;
 export const EXAMPLE_FILE = /\.(example|sample|template|dist|tpl)(\.|$)|(^|\/)example[s]?\//i;
 export const DEV_FILE = /(^|[/._-])(dev|develop|development|local|test|testing|override)([._-]|\.ya?ml$)/i;
 const SUPPRESS = /owasp-ignore\b/;
+/** A file whose first lines contain `owasp-ignore-file: <motivo>` is skipped by every rule (scanners, fixtures). */
+const IGNORE_FILE = /owasp-ignore-file\b/;
 const COMMENT_LINE = /^\s*(\/\/|#(?!!)|\*|\/\*|<!--|--\s)/;
 
 export const isTest = (p) => TEST_PATH.test(p);
@@ -36,6 +38,7 @@ export function select(ctx, { files, exclude = [], skipTests = true, allowGenera
     matchAny(f, files) && !matchAny(f, exclude)
     && (allowGenerated || !GENERATED.test(f))
     && (!skipTests || !isTest(f))
+    && !IGNORE_FILE.test((ctx.read(f) || '').slice(0, 600))
     && (!contains || (ctx.read(f) || '').match(contains)));
 }
 

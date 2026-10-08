@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /**
+ * owasp-ignore-file: este archivo contiene patrones y fixtures vulnerables a propósito.
+ *
  * Regression tests. Run with: node scripts/test.mjs
  *
  * Every static rule has a vulnerable fixture that must fail and a safe fixture that must
@@ -21,6 +23,8 @@ import { detect } from './detect-stack.mjs';
 import { catalog, parseArgs } from './lib/catalog.mjs';
 import { globToRegExp } from './lib/files.mjs';
 import { finalize, sarif } from './report.mjs';
+import { PROBES, makeClient, runLive } from './live.mjs';
+import { createServer } from 'node:http';
 
 let passed = 0, failed = 0;
 const temps = [];
@@ -151,7 +155,7 @@ const FIXTURES = {
   },
   'iac-plain-secrets': {
     bad: { 'serverless.yml': 'provider:\n  environment:\n    BOLD_API_KEY: sk9f8a7d6s5a4\n' },
-    good: { 'serverless.yml': 'provider:\n  environment:\n    BOLD_API_KEY: ${ssm:/agora/bold}\n    TOKEN_TTL: 3600\n' },
+    good: { 'serverless.yml': 'provider:\n  environment:\n    BOLD_API_KEY: ${ssm:/agora/bold}\n    TOKEN_TTL: 3600\n', 'ec2.tf': 'metadata_options {\n  http_tokens = "required"\n}\n' },
   },
   's3-public': {
     bad: { 'main.tf': 'resource "aws_s3_bucket_acl" "a" {\n  acl = "public-read"\n}\n' },
@@ -317,6 +321,18 @@ for (const [rule, fx] of Object.entries(FIXTURES)) {
   });
 }
 
+group('Calibración contra el corpus (falsos positivos ya vistos)');
+
+await test('un secreto con forma real dentro de un test queda para revisión, no como falla', async () => {
+  const r = await RULES['secrets-hardcoded'](buildContext(project({ 'server/x.spec.ts': `const k = '${PRIV}\\nfake';\n` })));
+  assert.equal(r.status, 'review');
+});
+
+await test('SQL de Moodle con fragmentos de get_in_or_equal queda para revisión', async () => {
+  const r = await RULES['sql-concat'](buildContext(project({ 'lib.php': '<?php [$in, $p] = $DB->get_in_or_equal($ids);\n$DB->get_records_sql("SELECT * FROM {course} WHERE id $in", $p);\n' })));
+  assert.equal(r.status, 'review');
+});
+
 group('Supresiones, excepciones y redacción');
 
 await test('owasp-ignore en la línea anterior suprime el hallazgo y se cuenta', async () => {
@@ -411,6 +427,8 @@ await test('globToRegExp: ** cruza directorios, * no', () => {
   assert.ok(globToRegExp('**/*.tf').test('infra/prod/main.tf'));
   assert.ok(globToRegExp('**/*.tf').test('main.tf'));
   assert.ok(!globToRegExp('src/*.ts').test('src/app/a.ts'));
+  assert.ok(globToRegExp('n8n-workflows/**').test('n8n-workflows/01-ingesta.json'));
+  assert.ok(globToRegExp('**/api/**').test('admin/api/handlers/x.php'));
 });
 
 await test('parseArgs acumula flags repetidos y respeta = dentro del valor', () => {
@@ -434,6 +452,51 @@ await test('reporte: un veredicto del agente reemplaza el estado y la evidencia;
   assert.ok(s.runs[0].tool.driver.rules[0].properties.tags.includes('OWASP-A01:2025'));
   assert.ok(s.runs[0].tool.driver.rules[0].properties.tags.includes('v5.0.0-8.3.1'));
 });
+
+group('Modo live contra un servidor local (sin red externa)');
+
+function serve(handler) {
+  return new Promise((ok) => { const s = createServer(handler); s.listen(0, '127.0.0.1', () => ok(s)); });
+}
+const weak = await serve((req, res) => {
+  if (req.url === '/.git/HEAD') { res.end('ref: refs/heads/main\n'); return; }
+  if (req.headers.origin) res.setHeader('access-control-allow-origin', req.headers.origin);
+  res.setHeader('content-type', 'text/html');
+  res.setHeader('set-cookie', 'sid=abc; Path=/');
+  res.setHeader('allow', 'GET, HEAD, TRACE');
+  res.end('<html><script src="/main.js"></script></html>');
+});
+const strong = await serve((req, res) => {
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.setHeader('strict-transport-security', 'max-age=63072000; includeSubDomains');
+  res.setHeader('content-security-policy', "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('referrer-policy', 'strict-origin-when-cross-origin');
+  res.setHeader('set-cookie', 'sid=abc; Path=/; Secure; HttpOnly; SameSite=Lax');
+  res.setHeader('allow', 'GET, HEAD, OPTIONS');
+  res.end(req.url === '/' ? '<html></html>' : '<html>index</html>');
+});
+const weakUrl = `http://127.0.0.1:${weak.address().port}/`;
+const strongUrl = `http://127.0.0.1:${strong.address().port}/`;
+const liveChecks = catalog().checks.filter((c) => c.type === 'live' && !['aws', 'tls-legacy', 'http-redirect'].includes(c.probe));
+
+await test('servidor débil: fallan HSTS, CSP, cabeceras, CORS reflejado, cookies, .git expuesto y TRACE', async () => {
+  const r = await runLive(liveChecks, [weakUrl]);
+  for (const id of ['LIVE-01', 'LIVE-02', 'LIVE-03', 'LIVE-04', 'LIVE-05', 'LIVE-08', 'LIVE-09']) assert.equal(r[id].status, 'fail', `${id}: ${r[id].status}`);
+});
+
+await test('servidor endurecido: todas las sondas pasan', async () => {
+  const r = await runLive(liveChecks, [strongUrl]);
+  for (const [id, x] of Object.entries(r)) assert.equal(x.status, 'pass', `${id}: ${x.status} ${x.findings.map((f) => f.message)}`);
+});
+
+await test('el cliente live rechaza hosts fuera del allowlist y métodos que no son de lectura', async () => {
+  const req = makeClient([strongUrl]);
+  await assert.rejects(req('http://example.com/'), /allowlist/);
+  await assert.rejects(req(strongUrl, { method: 'POST' }), /no permitido/);
+  await assert.rejects(req(strongUrl, { method: 'TRACE' }), /no permitido/);
+});
+weak.close(); strong.close();
 
 for (const t of temps) rmSync(t, { recursive: true, force: true });
 console.log(`\n${passed} ok, ${failed} fallidas`);

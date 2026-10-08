@@ -9,6 +9,7 @@
 import { resolve, dirname as pdirname } from 'node:path';
 import { listFiles, readText, readJson, basename, matchAny, lineAt } from './lib/files.mjs';
 import { catalog, parseArgs, isMain } from './lib/catalog.mjs';
+import { isTest } from './rules/engine.mjs';
 
 const MAX_EVIDENCE = 8;
 const MAX_CONTENT_FILES = 3000;
@@ -81,7 +82,8 @@ export function detect(root, { scope } = {}) {
     }
     for (const rule of d.content || []) {
       const re = new RegExp(rule.pattern, 'i');
-      const candidates = files.filter((f) => matchAny(f, rule.files)).slice(0, MAX_CONTENT_FILES);
+      // Test files and fixtures describe other stacks on purpose: they never define the project's facets.
+      const candidates = files.filter((f) => matchAny(f, rule.files) && !isTest(f)).slice(0, MAX_CONTENT_FILES);
       for (const f of candidates) {
         const text = readText(root, f);
         const m = text && re.exec(text);

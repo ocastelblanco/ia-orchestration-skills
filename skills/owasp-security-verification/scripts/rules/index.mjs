@@ -1,4 +1,6 @@
 /**
+ * owasp-ignore-file: este archivo contiene patrones y fixtures vulnerables a propósito.
+ *
  * Static rules. Each entry is `(ctx) => RuleResult` (see engine.mjs). Patterns are
  * deliberately conservative: a low-confidence match never fails a check on its own,
  * it becomes a 'review' item the agent must confirm with evidence.
@@ -45,7 +47,9 @@ export const RULES = {
         skipLine: (l, f, m) => looksPlaceholder(m[1]) || /^AIza/.test(m[1]) || /process\.env|getenv|os\.environ|\$\{|config\(|env\(/i.test(l) || /\.(md|html)$/.test(f),
       },
     ];
-    return verdict(scan(ctx, files, patterns.map((p) => ({ ...p, comments: true })), { maxPerFile: 5 }), files.length);
+    // In tests and fixtures a secret-shaped string is usually fake: the agent confirms (low confidence).
+    const tuned = patterns.map((p) => ({ ...p, comments: true, downgrade: (f) => isTest(f) }));
+    return verdict(scan(ctx, files, tuned, { maxPerFile: 5 }), files.length);
   },
 
   'secret-files-tracked': (ctx) => {
@@ -119,7 +123,7 @@ export const RULES = {
     { re: /->(query|exec|prepare)\s*\(\s*"[^"\n]*\b(SELECT|INSERT|UPDATE|DELETE)\b[^"\n]*\$\w+/gi, confidence: 'medium', message: 'SQL con variable interpolada en PHP' },
     { re: /->(query|exec)\s*\([^;\n]*\b(SELECT|INSERT|UPDATE|DELETE)\b[^;\n]*['"]\s*\.\s*\$/gi, confidence: 'medium', message: 'SQL concatenado en PHP' },
     { re: /\bmysqli_query\s*\([^,]+,\s*["'][^"'\n]*\$\w+/gi, confidence: 'high', message: 'mysqli_query con variable' },
-    { re: /\$DB->(get_records_sql|get_record_sql|get_field_sql|get_fieldset_sql|get_recordset_sql|count_records_sql|execute|get_records_select|get_records_sql_menu)\s*\(\s*("[^"\n]*\$\w+|[^;\n]*['"]\s*\.\s*\$\w+)/g, confidence: 'medium', message: 'SQL de Moodle con variable concatenada (usar placeholders ? o :nombre)' },
+    { re: /\$DB->(get_records_sql|get_record_sql|get_field_sql|get_fieldset_sql|get_recordset_sql|count_records_sql|execute|get_records_select|get_records_sql_menu)\s*\(\s*("[^"\n]*\$\w+|[^;\n]*['"]\s*\.\s*\$\w+)/g, confidence: 'medium', message: 'SQL de Moodle con variable concatenada (usar placeholders ? o :nombre)', downgrade: (_f, text) => /get_in_or_equal|sql_like/.test(text) },
     { re: /\.execute(many)?\s*\(\s*f["']/g, confidence: 'high', message: 'SQL con f-string' },
     { re: /\.execute(many)?\s*\(\s*["'][^"'\n]*["']\s*(%|\+|\.format\()/g, confidence: 'high', message: 'SQL formateado con % / + / format' },
   ]),
@@ -301,7 +305,8 @@ export const RULES = {
     const files = select(ctx, { files: [...IAC, ...COMPOSE] }).filter((f) => !EXAMPLE_FILE.test(f));
     const key = '([A-Z0-9_]*(SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_KEY|ACCESS_KEY|ENCRYPTION_KEY)[A-Z0-9_]*)';
     const patterns = [
-      { re: new RegExp(`^\\s*-?\\s*${key}\\s*[:=]\\s*['"]?([^\\s'"#]{6,})['"]?\\s*$`, 'gmi'), group: 3 },
+      // Environment variable names are upper case: case-sensitive on purpose (http_tokens is not a secret).
+      { re: new RegExp(`^\\s*-?\\s*${key}\\s*[:=]\\s*['"]?([^\\s'"#]{6,})['"]?\\s*$`, 'gm'), group: 3 },
       { re: /^\s*(password|master_password|secret|token|api_key|access_key|secret_key)\s*=\s*"([^"]{6,})"/gmi, group: 2 },
     ];
     const findings = [];

@@ -342,7 +342,7 @@
               "*.yml",
               "*.json"
             ],
-            "pattern": "AWSTemplateFormatVersion"
+            "pattern": "(^|\\n)\\s*\"?AWSTemplateFormatVersion\"?\\s*:\\s*['\"]?20\\d\\d"
           }
         ]
       },

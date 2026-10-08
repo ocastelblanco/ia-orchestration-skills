@@ -30,7 +30,7 @@ export function finalize(doc, live) {
     if (v) {
       status = v.status;
       source = r.source && c.type !== 'review' ? `${r.source}+agent` : 'agent';
-      if (v.status === 'fail') findings = v.evidence.map((e) => ({ file: e.file || e.url || e.aws, line: e.line ?? null, snippet: e.snippet || '', confidence: 'high', message: v.note }));
+      if (v.status === 'fail') findings = v.evidence.map((e) => ({ file: e.file || e.url || e.aws, line: e.line ?? null, snippet: e.snippet || '', confidence: 'high', message: '' }));
       else findings = [];
     }
     out[id] = { check: c, status, source, findings, accepted: (r.findings || []).filter((f) => f.accepted), evidence: v?.evidence || r.evidence || [], note: v?.note || r.note || (c.type === 'live' && !live ? 'Requiere modo live (opt-in).' : undefined) };
@@ -98,7 +98,7 @@ export function markdown(doc, fin, d, live) {
     L.push(`- **ASVS:** ${c.asvs.length ? asvsLine(c.asvs) : '_sin requisito ASVS directo; criterio de la cheat sheet_'}${c.always ? ' · aplicado en todo nivel' : ''}`);
     L.push(`- **Corrección:** [${c.cheatsheet.replace(/_/g, ' ')} Cheat Sheet](${cheatsheetUrl(c.cheatsheet)})`);
     L.push('- **Evidencia:**');
-    for (const f of x.findings.slice(0, 15)) L.push(`  - \`${f.file}${f.line ? `:${f.line}` : ''}\` — ${f.message}${f.snippet ? `<br>\`${f.snippet.replace(/`/g, "'")}\`` : ''}`);
+    for (const f of x.findings.slice(0, 15)) L.push(`  - \`${f.file}${f.line ? `:${f.line}` : ''}\`${f.message ? ` — ${f.message}` : ''}${f.snippet ? `<br>\`${f.snippet.replace(/`/g, "'")}\`` : ''}`);
     if (x.findings.length > 15) L.push(`  - … ${x.findings.length - 15} más en results.json`);
     if (x.note && x.source.includes('agent')) L.push(`- **Nota:** ${x.note}`);
     L.push('');
@@ -155,7 +155,7 @@ export function sarif(doc, fin) {
       results: fails.flatMap(({ check: c, findings }) => findings.map((f) => ({
         ruleId: c.id,
         level: level[c.severity],
-        message: { text: `${c.title}: ${f.message}` },
+        message: { text: `${c.title}: ${f.message || fin[c.id]?.note || ''}`.replace(/: $/, '') },
         locations: [{ physicalLocation: { artifactLocation: { uri: f.file }, ...(f.line ? { region: { startLine: f.line } } : {}) } }],
       }))),
     }],
