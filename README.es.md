@@ -58,6 +58,20 @@ Las tres se articulan entre sí. `project-docs-bootstrap` produce identificadore
 - **Compuerta de evidencia.** El agente solo puede marcar `pass` o `fail` citando un archivo y una línea que existan, una URL autorizada o una llamada de API de solo lectura. Sin evidencia el chequeo queda "pendiente", y el reporte no lo presenta como aprobado.
 - **Liviana.** Node sin dependencias; 58 reglas estáticas resuelven lo automático en segundos, y `npm audit` y `composer audit` cubren las dependencias. El modo live (cabeceras, TLS, CORS, rutas expuestas, AWS en solo lectura) es opt-in y está restringido a un allowlist.
 
+#### Cómo se validó
+
+| Prueba | Resultado |
+|---|---|
+| Pruebas de regresión (`scripts/test.mjs`) | 79 ok. Cada regla estática tiene un fixture vulnerable que debe fallar y uno seguro que debe pasar |
+| Catálogo contra el estándar (`scripts/validate-catalog.mjs`) | Los 116 chequeos citan requisitos que existen en el CSV oficial de ASVS 5.0.0, categorías del Top 10:2025 y cheat sheets del índice vigente |
+| Modo estático sobre 9 proyectos reales | Angular SSR, Lambda, Firebase, Moodle, PHP, Flask, n8n y Docker Compose, en solo lectura: de 33 a 82 chequeos aplicables por proyecto y de 0 a 20 s por corrida. Los falsos positivos encontrados se corrigieron y quedaron fijados como pruebas |
+| Modo live sobre 4 dominios de producción (6 URLs) | Sondas de cabeceras, CORS, cookies, TLS, redirección HTTP→HTTPS y rutas expuestas. Encontró cabeceras de seguridad ausentes en 3 de las 6 URLs, entre ellas una CSP presente en la raíz de un sitio y ausente en sus rutas renderizadas por SSR |
+| Contraprueba independiente | Cada resultado del modo live se contrastó con `curl` y `openssl s_client`: coincidieron todos. El rechazo de TLS ≤ 1.1 se confirmó con la alerta `protocol version` que envía el servidor, y no con un error del cliente local |
+
+La validación en producción dejó una mejora en la herramienta: cuando una URL responde con una redirección, el modo live ahora lo advierte y aclara que evaluó la redirección y no la aplicación, en vez de reportar en silencio las cabeceras de un 301.
+
+Siguen pendientes de validación empírica `pip-audit` y los chequeos `AWS-*` vía el MCP de AWS.
+
 ---
 
 ## Instalación
