@@ -80,7 +80,7 @@ export const PROBES = {
     const r = await get(url);
     const f = [];
     if ((r.headers.get('x-content-type-options') || '').toLowerCase() !== 'nosniff') f.push(fail(url, r.headers.get('x-content-type-options') || '(ausente)', 'Falta X-Content-Type-Options: nosniff', 'medium'));
-    if (!r.headers.get('referrer-policy')) f.push(fail(url, '(ausente)', 'Falta Referrer-Policy', 'low'));
+    if (isHtml(r) && !r.headers.get('referrer-policy')) f.push(fail(url, '(ausente)', 'Falta Referrer-Policy', 'low'));
     if (!r.headers.get('content-type')) f.push(fail(url, '(ausente)', 'Falta Content-Type', 'medium'));
     return result(f);
   },
@@ -175,6 +175,16 @@ export async function runLive(checks, urls) {
   const request = makeClient(urls);
   const cache = new Map();
   const get = (u) => { if (!cache.has(u)) cache.set(u, request(u)); return cache.get(u); };
+  // A URL that answers 3xx is evaluated as a redirect, not as the application behind it:
+  // HSTS and nosniff still apply to every response (ASVS 3.4.1, 3.4.4), but the report must say so.
+  const redirects = {};
+  for (const url of urls) {
+    try {
+      const r = await get(url);
+      if (r.status >= 300 && r.status < 400) redirects[url] = `${r.status} → ${r.headers.get('location') || '(sin Location)'}`;
+    } catch { /* reported by each probe */ }
+  }
+  const RESPONSE_PROBES = new Set(['header-hsts', 'header-csp', 'header-basic', 'cookie-flags', 'cors-reflection']);
   const out = {};
   for (const c of checks) {
     if (!PROBES[c.probe]) continue;
@@ -187,6 +197,7 @@ export async function runLive(checks, urls) {
       merged.findings.push(...r.findings);
       merged.evidence.push(...(r.evidence || []));
       if (r.note) merged.notes.push(r.note);
+      if (redirects[url] && RESPONSE_PROBES.has(c.probe)) merged.notes.push(`${url} responde ${redirects[url]}: se evaluó la redirección; agrega el destino al allowlist para evaluar la app.`);
       merged.scanned += r.scanned;
       if (rank[r.status] > rank[merged.status]) merged.status = r.status;
     }
@@ -210,5 +221,5 @@ if (isMain(import.meta.url)) {
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'live.json'), JSON.stringify({ urls, at: new Date().toISOString(), results: res }, null, 2));
   if (args.json) console.log(JSON.stringify(res, null, 2));
-  else for (const [id, r] of Object.entries(res)) console.log(`${id.padEnd(8)} ${r.status.padEnd(15)} ${r.findings.map((f) => f.message).join('; ')}`);
+  else for (const [id, r] of Object.entries(res)) console.log(`${id.padEnd(8)} ${r.status.padEnd(15)} ${r.findings.map((f) => f.message).join('; ')}${r.note ? `\n         nota: ${r.note}` : ''}`);
 }

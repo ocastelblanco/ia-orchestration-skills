@@ -496,6 +496,15 @@ await test('el cliente live rechaza hosts fuera del allowlist y métodos que no 
   await assert.rejects(req(strongUrl, { method: 'POST' }), /no permitido/);
   await assert.rejects(req(strongUrl, { method: 'TRACE' }), /no permitido/);
 });
+await test('una URL que redirige se evalúa como redirección y el resultado lo advierte', async () => {
+  const redir = await serve((req, res) => { res.writeHead(301, { location: 'https://otro.example/app/', 'content-type': 'text/plain' }); res.end('Moved'); });
+  const u = `http://127.0.0.1:${redir.address().port}/`;
+  const r = await runLive(liveChecks, [u]);
+  assert.match(r['LIVE-01'].note, /responde 301 → https:\/\/otro\.example\/app\//);
+  assert.ok(!r['LIVE-03'].findings.some((f) => /Referrer-Policy/.test(f.message)), 'Referrer-Policy no aplica a una redirección');
+  assert.equal(r['LIVE-02'].status, 'not-applicable');
+  redir.close();
+});
 weak.close(); strong.close();
 
 for (const t of temps) rmSync(t, { recursive: true, force: true });

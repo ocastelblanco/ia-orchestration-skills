@@ -58,6 +58,20 @@ The three interlock. `project-docs-bootstrap` emits stable identifiers (`OBJ-3`,
 - **An evidence gate.** The agent can only mark `pass` or `fail` by citing a file and line that exist, an allowed URL, or a read-only API call. Without evidence the check stays "pending", and the report never presents it as passed.
 - **Lightweight.** Dependency-free Node; 58 static rules settle the automatic part in seconds, and `npm audit` and `composer audit` cover dependencies. Live mode (headers, TLS, CORS, exposed paths, read-only AWS) is opt-in and restricted to an allowlist.
 
+#### How it was validated
+
+| Test | Result |
+|---|---|
+| Regression suite (`scripts/test.mjs`) | 79 passing. Every static rule has a vulnerable fixture that must fail and a safe one that must pass |
+| Catalog against the standard (`scripts/validate-catalog.mjs`) | All 116 checks cite requirements that exist in the official ASVS 5.0.0 CSV, Top 10:2025 categories and cheat sheets from the current index |
+| Static mode on 9 real projects | Angular SSR, Lambda, Firebase, Moodle, PHP, Flask, n8n and Docker Compose, read-only: 33 to 82 applicable checks per project, 0 to 20 s per run. False positives found along the way were fixed and pinned as tests |
+| Live mode on 4 production domains (6 URLs) | Probes for headers, CORS, cookies, TLS, HTTP→HTTPS redirect and exposed paths. It found missing security headers on 3 of the 6 URLs, including a CSP that a site sends at its root but not on its SSR-rendered routes |
+| Independent cross-check | Every live result was checked against `curl` and `openssl s_client`, and all of them matched. TLS ≤ 1.1 rejection was confirmed by the server's `protocol version` alert, not by a local client error |
+
+Production validation also improved the tool: when a URL answers with a redirect, live mode now says so and states that it evaluated the redirect rather than the application, instead of silently reporting a 301's headers.
+
+Still pending empirical validation: `pip-audit` and the `AWS-*` checks via the AWS MCP.
+
 ---
 
 ## Installation
